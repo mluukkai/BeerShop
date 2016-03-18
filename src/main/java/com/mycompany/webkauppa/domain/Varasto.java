@@ -1,55 +1,46 @@
-package com.mycompany.webkauppa.sovelluslogiikka;
+package com.mycompany.webkauppa.domain;
 
-import com.mycompany.webkauppa.tietokantayhteydet.TuoteDAO;
+import com.mycompany.webkauppa.db.TuoteDAO;
 import java.util.*;
+import org.bson.types.ObjectId;
 
 public class Varasto {
 
-    private static Varasto instanssi;
-    private static TuoteDAO tuoteDAO = TuoteDAO.inMemory();
+    private TuoteDAO tuoteDAO;
+    private static Varasto instance;
 
-    public static Varasto getInstance() {
-        if (instanssi == null) {
-            instanssi = new Varasto();
-        }
-
-        return instanssi;
+    public static Varasto create(TuoteDAO tuoteDAO) {
+        instance = new Varasto(tuoteDAO);
+        return instance;
     }
-
-    public static void setTuoteDAO(TuoteDAO dao) {
-        tuoteDAO = dao;
+    
+    public static Varasto getInstance(){
+        return instance;
     }
-    private List<Tuote> tuotteet;
-
-    private Varasto() {
-        tuotteet = tuoteDAO.findAll();
+    
+    private Varasto(TuoteDAO tuoteDAO) {
+        this.tuoteDAO = tuoteDAO;
     }
 
     public List<Tuote> tuotteidenLista() {
-        return tuotteet;
+        return tuoteDAO.findAll();
     }
 
-    public Tuote etsiTuote(long id) {        
-        for (Tuote tuote : tuotteet) {            
-            if (tuote.getId() == id) {
-                return tuote;
-            }
-        }
-
-        return null;
+    public Tuote etsiTuote(ObjectId id) {        
+        return tuoteDAO.find(id);
     }
 
-    public Tuote otaVarastosta(long id) {
+    public Tuote otaVarastosta(ObjectId id) {
         Tuote tuote = etsiTuote(id);
         if (tuote.getSaldo() == 0) {
             return null;
         }
         tuote.setSaldo(tuote.getSaldo() - 1);
-
+        tuoteDAO.save(tuote);
         return tuote;
     }
 
-    public void palautaVarastoon(long id) {
+    public void palautaVarastoon(ObjectId id) {
         Tuote tuote = etsiTuote(id);
         tuote.setSaldo(tuote.getSaldo() + 1);
         tuoteDAO.save(tuote);
@@ -61,7 +52,7 @@ public class Varasto {
         tuoteDAO.save(tuote);
     }
 
-    public void paivitaTuotteenTiedot(long tuoteId, int uusiHinta, int uusiSaldo) {
+    public void paivitaTuotteenTiedot(ObjectId tuoteId, int uusiHinta, int uusiSaldo) {
         Tuote tuote = etsiTuote(tuoteId);
         tuote.setSaldo(uusiSaldo);
         tuote.setHinta(uusiHinta);
@@ -69,14 +60,13 @@ public class Varasto {
     }
 
     public boolean lisaaTuote(String nimi, int hinta, int saldo) {
-        for (Tuote tuote : tuotteet) {
+        for (Tuote tuote : tuoteDAO.findAll()) {
             if ( tuote.getNimi().equals(nimi) ) return false;
         }
         
         Tuote tuote = new Tuote(nimi, hinta);
         tuote.setSaldo(saldo);
         tuoteDAO.save(tuote);
-        tuotteet.add(tuote);
         return true;
     }
 }

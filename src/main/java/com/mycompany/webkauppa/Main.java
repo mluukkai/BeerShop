@@ -1,29 +1,36 @@
 package com.mycompany.webkauppa;
 
-import com.mycompany.webkauppa.rajapinnat.PankkiRajapinta;
-import com.mycompany.webkauppa.rajapinnat.ToimitusjarjestelmaRajapinta;
-import com.mycompany.webkauppa.sovelluslogiikka.Ostoskori;
-import com.mycompany.webkauppa.sovelluslogiikka.Tuote;
-import com.mycompany.webkauppa.sovelluslogiikka.Varasto;
-import java.util.HashMap;
-import java.util.Map;
-import spark.ModelAndView;
+import com.mycompany.webkauppa.db.*;
+import com.mycompany.webkauppa.rajapinnat.*;
+import com.mycompany.webkauppa.domain.*;
+import com.mycompany.webkauppa.ohjaus.*;
+import java.util.*;
+import org.bson.types.ObjectId;
+import spark.*;
 import static spark.Spark.*;
 import spark.template.thymeleaf.ThymeleafTemplateEngine;
 
 // mvn exec:java -Dexec.mainClass=com.mycompany.webkauppa.Main
 
 public class Main {
-    public static void main(String[] args) {       
+    public static void main(String[] args) {   
+        port(getHerokuAssignedPort());
+        Map<String, Object> viewParams = new HashMap<>();  
+        
+        Varasto varasto = Varasto.create(new TuoteDAOMongo());
+        Ostostapahtumat ostostapahtumat = Ostostapahtumat.create(new OstostapahtumaDAOMongo());
+        PankkiRajapinta pankki = PankkiRajapinta.getInstance();
+        ToimitusRajapinta toimitus = ToimitusRajapinta.getInstance();      
+        
         get("/home", (req, res) ->  {           
-            return new ModelAndView(new HashMap<>(), "index");
+            return view("index");
             
-        }, new ThymeleafTemplateEngine());
+        }, renderer());
 
         get("/yhteystiedot", (req, res) ->  { 
-            return new ModelAndView(new HashMap<>(), "yhteystiedot");            
-        
-        }, new ThymeleafTemplateEngine());        
+            return view("yhteystiedot");            
+    
+        }, renderer());        
 
         get("/tyhjenna", (req, res) ->  { 
             req.session().removeAttribute("ostoskori");             
@@ -32,111 +39,143 @@ public class Main {
         });     
 
         get("/kassa", (req, res) ->  { 
-            Map<String, Object> params = new HashMap<>();
-            
-            Ostoskori kori = (Ostoskori)req.session(true).attribute("ostoskori");
+            Ostoskori kori = getOstoskoriFrom(req);
             if (kori==null) {
                 kori = new Ostoskori();
             }
-            params.put("kori", kori);            
-            return new ModelAndView(params, "kassa");    
+            viewParams.put("kori", kori);            
+            return Main.view("kassa", viewParams);    
         
-        }, new ThymeleafTemplateEngine());       
+        }, renderer());              
         
+        // ostosten poisto korista
         post("/poista", (req, res) ->  { 
-            int tuoteId = Integer.parseInt(req.queryParams("id"));
-            Ostoskori kori = (Ostoskori)req.session(true).attribute("ostoskori");
-            Tuote poistettavaTuote = Varasto.getInstance().etsiTuote(tuoteId);
-            kori.poista(poistettavaTuote);
-            
+
+            OstoksenPoistoKorista komento = new OstoksenPoistoKorista(
+                getOstoskoriFrom(req), 
+                new ObjectId(req.queryParams("id"))
+            );          
+            komento.suorita();            
+
             res.redirect("/kassa");
             return ""; 
         });         
         
+        // tuotteiden maksu
         post("/kassa", (req, res) ->  { 
-            Ostoskori kori = (Ostoskori)req.session(true).attribute("ostoskori");
+            Ostoskori kori = getOstoskoriFrom(req); 
+            int hinta = kori.hinta();
             
-            String nimi = req.queryParams("nimi");
-            String osoite = req.queryParams("osoite");
-            String kortti = req.queryParams("luottokorttinumero");
-                        
-            if ( PankkiRajapinta.getInstance().maksa(nimi, kortti, kori.hinta()) ) {
-                ToimitusjarjestelmaRajapinta.getInstance().kirjaatoimitus(nimi, osoite, kori.ostokset());
-                req.session().removeAttribute("ostoskori");
-                req.session(true).attribute("osoite", osoite);
-                req.session(true).attribute("hinta", ""+kori.hinta());
-                res.redirect("/onnistunut_maksu");                
+            OstoksenSuoritus komento = new OstoksenSuoritus(
+                req.queryParams("nimi"), 
+                req.queryParams("osoite"),
+                req.queryParams("luottokorttinumero"), 
+                kori
+            );
+            
+            if ( komento.suorita() ) {
+                req.session(true).attribute("osoite", req.queryParams("osoite"));
+                req.session(true).attribute("hinta", ""+hinta);
+                res.redirect("/onnistunut_maksu");                 
             } else {
-                res.redirect("/epaonnistunut_maksu");
+                res.redirect("/epaonnistunut_maksu");    
             }
-            
+                        
             return ""; 
         }); 
         
-        get("/onnistunut_maksu", (req, res) ->  { 
-            Map<String, Object> params = new HashMap<>();
-            
+        get("/onnistunut_maksu", (req, res) ->  {  
             String osoite = (String)req.session().attribute("osoite");
             req.session().removeAttribute("osoite");
             
             String hinta = (String)req.session().attribute("hinta");
             req.session().removeAttribute("hinta");
 
-            params.put("osoite", osoite);    
-            params.put("hinta", hinta);   
-            return new ModelAndView(params, "ostokset");    
+            viewParams.put("osoite", osoite);    
+            viewParams.put("hinta", hinta);   
+            return Main.view("ostokset", viewParams);    
         
-        }, new ThymeleafTemplateEngine()); 
+        }, renderer()); 
         
         get("/epaonnistunut_maksu", (req, res) ->  {           
-            return new ModelAndView(new HashMap<>(), "virhe");    
+            return view("virhe");    
         
-        }, new ThymeleafTemplateEngine()); 
+        }, renderer()); 
         
+        // tuotteiden lista
         get("/tuotteet", (req, res) ->  {
-    
-            if ( req.session(true).attribute("ostoskori")==null ) {
-                req.session(true).attribute("ostoskori", new Ostoskori());
-            }
+            viewParams.put("tuotteet", varasto.tuotteidenLista());
             
-            Map<String, Object> params = new HashMap<>();
-            params.put("tuotteet", Varasto.getInstance().tuotteidenLista());
-            
-            Ostoskori kori = (Ostoskori)req.session(true).attribute("ostoskori");
-            params.put("kori", kori);
+            Ostoskori kori = getOstoskoriFrom(req);
+            if ( kori==null ) {
+                kori = new Ostoskori();
+                req.session(true).attribute("ostoskori", kori);
+            }                   
+
+            viewParams.put("kori", kori);
                         
-            return new ModelAndView(params, "tuotteet");    
+            return view("tuotteet", viewParams);    
         
-        }, new ThymeleafTemplateEngine());      
+        }, renderer());      
 
+        // ostoksen lisäys koriin
         post("/tuotteet", (req, res) ->  { 
-            int tuoteId = Integer.parseInt(req.queryParams("id"));
-
-            Ostoskori kori = (Ostoskori)req.session(true).attribute("ostoskori");    
-            Varasto varasto = Varasto.getInstance();
-            Tuote tuote = varasto.otaVarastosta(tuoteId);
-        
-            if (tuote!=null) {
-                kori.lisaaTuote(tuote);
-            }
+            OstoksenLisaysKoriin komento = new OstoksenLisaysKoriin(
+                getOstoskoriFrom(req), 
+                new ObjectId(req.queryParams("id"))
+            );
+            
+            komento.suorita();
             
             res.redirect("/tuotteet");
             return "";
-        });         
+        }); 
         
-        get("/hallinta", (req, res) ->  {
-            String data = "";
-            data += PankkiRajapinta.getInstance().maksut() + "\n";
-            data += ToimitusjarjestelmaRajapinta.getInstance().toimitukset();
-            return data;    
-        });        
+        // hallintasivulta tapahtuva tuotteen lisääminen
+        post("/hallinta", (req, res) ->  {
+            String nimi = req.queryParams("nimi");
+            int hinta = Integer.parseInt(req.queryParams("hinta"));
+            int saldo = Integer.parseInt(req.queryParams("saldo"));
+            
+            varasto.lisaaTuote(nimi, hinta, saldo);
+            res.redirect("/hallinta");
+            return "";
+        }); 
+                
+        get("/hallinta", (req, res) ->  {      
+            viewParams.put("tuotteet", varasto.tuotteidenLista());
+            viewParams.put("maksut", ostostapahtumat.maksut());
+            viewParams.put("toimitukset", ostostapahtumat.toimitukset());
+            
+            return Main.view("hallinta", viewParams);       
+        }, renderer());       
         
-        get( "*", (req, res) ->  { 
-            
-            return new ModelAndView(new HashMap<>(), "index");
-            
-        }, new ThymeleafTemplateEngine());    
+        get( "*", (req, res) ->  {          
+            return view("index");           
+        }, renderer());    
     }
     
+    static Ostoskori getOstoskoriFrom(Request req){
+        return (Ostoskori)req.session(true).attribute("ostoskori");
+    }
     
+    static ThymeleafTemplateEngine renderer() {
+        return new ThymeleafTemplateEngine();
+    }
+ 
+    static ModelAndView view(String template){
+        return new ModelAndView(new HashMap<>(), template);
+    }
+       
+    static ModelAndView view(String template, Map<String, Object> map){
+        return new ModelAndView(map, template);
+    }
+    
+    static int getHerokuAssignedPort() {
+        ProcessBuilder processBuilder = new ProcessBuilder();
+        if (processBuilder.environment().get("PORT") != null) {
+            return Integer.parseInt(processBuilder.environment().get("PORT"));
+        }
+        return 4567; //return default port if heroku-port isn't set (i.e. on localhost)
+    }   
 }

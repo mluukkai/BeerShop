@@ -1,4 +1,6 @@
-package com.mycompany.webkauppa.sovelluslogiikka;
+package com.mycompany.webkauppa.domain;
+
+import org.bson.types.ObjectId;
 
 public class Ostos {
 
@@ -22,7 +24,7 @@ public class Ostos {
         return tuote.getNimi();
     }
 
-    public long tuotteenId() {
+    public ObjectId tuotteenId() {
         return tuote.getId();
     }
 

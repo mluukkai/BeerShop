@@ -1,10 +1,14 @@
-package com.mycompany.webkauppa.sovelluslogiikka;
+package com.mycompany.webkauppa.domain;
 
-import java.io.Serializable;
+import org.bson.types.ObjectId;
+import org.mongodb.morphia.annotations.Entity;
+import org.mongodb.morphia.annotations.Id;
 
-public class Tuote implements Serializable {
+@Entity
+public class Tuote {
+    @Id
+    private ObjectId id;
 
-    private long id;
     private String nimi;
     private int hinta;
     private int saldo;
@@ -17,18 +21,18 @@ public class Tuote implements Serializable {
         this.hinta = hinta;
     }
 
-    public Tuote(long id, String nimi, int hinta) {
+    public Tuote(ObjectId id, String nimi, int hinta) {
         this.id = id;
         this.nimi = nimi;
         this.hinta = hinta;
     }
 
 
-    public long getId() {
+    public ObjectId getId() {
         return id;
     }
 
-    public void setId(long id) {
+    public void setId(ObjectId id) {
         this.id = id;
     }
 

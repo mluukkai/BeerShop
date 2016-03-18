@@ -1,4 +1,4 @@
-package com.mycompany.webkauppa.sovelluslogiikka;
+package com.mycompany.webkauppa.domain;
 
 import java.util.ArrayList;
 
@@ -58,7 +58,7 @@ public class Ostoskori {
 
     private Ostos etsi(Tuote etsittava) {
         for (Ostos ostos : ostokset) {
-            if (ostos.tuotteenId() == etsittava.getId()) {
+            if (ostos.tuotteenId().equals(etsittava.getId())) {
                 return ostos;
             }
         }
