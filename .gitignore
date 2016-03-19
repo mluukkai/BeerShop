@@ -1,1 +1,5 @@
-target/
+target/generated-sources
+target/archive-tmp
+target/heroku
+target/classes
+target/maven-archiver
