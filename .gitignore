@@ -3,3 +3,4 @@ target/archive-tmp
 target/heroku
 target/classes
 target/maven-archiver
+target/test-classes
