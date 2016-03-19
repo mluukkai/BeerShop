@@ -1,6 +1,7 @@
 package com.mycompany.webkauppa.db;
 
 import com.mongodb.MongoClient;
+import com.mongodb.MongoClientURI;
 import com.mycompany.webkauppa.domain.Ostostapahtuma;
 import java.util.List;
 import org.mongodb.morphia.Datastore;
@@ -12,8 +13,9 @@ public class OstostapahtumaDAOMongo {
     
     public OstostapahtumaDAOMongo() {
         Morphia morphia = new Morphia();
-        MongoClient mc = new MongoClient("80.69.172.211:27017");
-        store = morphia.createDatastore(mc, "otm6");    
+        MongoClientURI uri = new MongoClientURI("mongodb://heroku_d8l45x65:d338utkatj56tmeaf2ni7ml5ua@ds019839.mlab.com:19839/heroku_d8l45x65");
+        MongoClient mc = new MongoClient(uri);
+        store = morphia.createDatastore(mc, uri.getDatabase());
     }
     
     private Query<Ostostapahtuma> tuotteet() {
