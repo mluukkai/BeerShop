@@ -150,6 +150,16 @@ public class Main {
             return Main.view("hallinta", viewParams);       
         }, renderer());       
         
+        get("/products", (req, res) -> {
+            TuoteDAOMongo dao = new TuoteDAOMongo();
+
+            String tuotteet = "";
+            for (Tuote tuote : dao.findAll()) {
+                tuotteet += tuote.getNimi() + " ";
+            }
+            return tuotteet;
+        });
+        
         get( "*", (req, res) ->  {          
             return view("index");           
         }, renderer());    
