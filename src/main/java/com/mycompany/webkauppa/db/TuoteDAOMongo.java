@@ -1,6 +1,7 @@
 package com.mycompany.webkauppa.db;
 
 import com.mongodb.MongoClient;
+import com.mongodb.MongoClientURI;
 import com.mycompany.webkauppa.domain.Tuote;
 import java.util.List;
 import org.bson.types.ObjectId;
@@ -10,17 +11,19 @@ import org.mongodb.morphia.query.Query;
 
 public class TuoteDAOMongo implements TuoteDAO {
     private Datastore store;
-    
+
+
     public TuoteDAOMongo() {
         Morphia morphia = new Morphia();
-        MongoClient mc = new MongoClient("80.69.172.211:27017");
-        store = morphia.createDatastore(mc, "otm6");    
+        MongoClientURI uri = new MongoClientURI("mongodb://ohtu:ohtu@ds055842.mongolab.com:55842/ohtu");
+        MongoClient mc = new MongoClient(uri);
+        store = morphia.createDatastore(mc, "ohtu");
     }
-    
+
     private Query<Tuote> tuotteet() {
         return store.createQuery(Tuote.class);
     }
-    
+
     @Override
     public List<Tuote> findAll() {
         return tuotteet().asList();
