@@ -12,7 +12,6 @@ import org.mongodb.morphia.query.Query;
 public class TuoteDAOMongo implements TuoteDAO {
     private Datastore store;
 
-
     public TuoteDAOMongo() {
         Morphia morphia = new Morphia();
         MongoClientURI uri = new MongoClientURI("mongodb://heroku_d8l45x65:d338utkatj56tmeaf2ni7ml5ua@ds019839.mlab.com:19839/heroku_d8l45x65");
